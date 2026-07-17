@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GroundSet — Live Decision Trace</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --paper:#E7E4DA;
+    --paper-deep:#DEDACB;
+    --ink:#191B1F;
+    --ink-soft:#4B4E55;
+    --navy:#12213B;
+    --navy-2:#1C2E4A;
+    --rule:#C9C3B4;
+    --approve:#1F5D45;
+    --approve-bg:#E3ECE6;
+    --refer:#8C5A1E;
+    --refer-bg:#F1E7D6;
+    --decline:#7A2E2E;
+    --decline-bg:#F1E1DE;
+    --mono-bg:#181B21;
+    --mono-text:#D8DEE4;
+    --display: 'Fraunces', serif;
+    --body: 'IBM Plex Sans', sans-serif;
+    --mono: 'IBM Plex Mono', monospace;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--paper);
+    color:var(--ink);
+    font-family:var(--body);
+    min-height:100vh;
+  }
+  .wrap{max-width:1180px;margin:0 auto;padding:36px 28px 80px;}
+
+  /* header */
+  .topbar{display:flex;justify-content:space-between;align-items:flex-end;border-bottom:2px solid var(--navy);padding-bottom:18px;margin-bottom:28px;flex-wrap:wrap;gap:14px;}
+  .brand{display:flex;align-items:baseline;gap:10px;}
+  .brand .mark{font-family:var(--display);font-weight:600;font-size:26px;letter-spacing:0.01em;color:var(--navy);}
+  .brand .sub{font-family:var(--mono);font-size:11px;text-transform:uppercase;letter-spacing:0.14em;color:var(--ink-soft);}
+  .topbar .caption{font-family:var(--mono);font-size:12px;color:var(--ink-soft);text-align:right;line-height:1.5;}
+
+  h1{font-family:var(--display);font-weight:500;font-size:30px;line-height:1.25;margin:0 0 8px;max-width:780px;}
+  .lede{font-size:15.5px;color:var(--ink-soft);max-width:640px;line-height:1.55;margin:0 0 30px;}
+
+  /* view toggle */
+  .viewtoggle{display:inline-flex;border:1px solid var(--navy);border-radius:2px;overflow:hidden;margin-bottom:34px;}
+  .viewtoggle button{font-family:var(--mono);font-size:11.5px;letter-spacing:0.05em;text-transform:uppercase;background:transparent;border:none;padding:9px 16px;cursor:pointer;color:var(--navy);}
+  .viewtoggle button.active{background:var(--navy);color:var(--paper);}
+
+  /* layout */
+  .stage{display:grid;grid-template-columns:290px 1fr;gap:28px;align-items:start;}
+  @media (max-width:840px){.stage{grid-template-columns:1fr;}}
+
+  .cases{display:flex;flex-direction:column;gap:12px;position:sticky;top:24px;}
+  .case-label{font-family:var(--mono);font-size:11px;text-transform:uppercase;letter-spacing:0.12em;color:var(--ink-soft);margin-bottom:2px;}
+  .case-card{background:#fff;border:1px solid var(--rule);border-radius:3px;padding:14px 16px;cursor:pointer;transition:border-color .15s, transform .15s;}
+  .case-card:hover{border-color:var(--navy);}
+  .case-card.selected{border-color:var(--navy);border-width:2px;padding:13px 15px;box-shadow:2px 2px 0 var(--navy);}
+  .case-card .ctype{font-family:var(--mono);font-size:10.5px;text-transform:uppercase;letter-spacing:0.08em;color:var(--ink-soft);}
+  .case-card .cname{font-family:var(--display);font-size:17px;font-weight:500;margin:3px 0 5px;}
+  .case-card .cmeta{font-size:12.5px;color:var(--ink-soft);line-height:1.4;}
+
+  .run-btn{margin-top:8px;font-family:var(--mono);font-size:12.5px;letter-spacing:0.05em;text-transform:uppercase;background:var(--navy);color:var(--paper);border:none;padding:13px 16px;border-radius:2px;cursor:pointer;transition:background .15s;}
+  .run-btn:disabled{background:#9aa0ab;cursor:not-allowed;}
+  .run-btn:not(:disabled):hover{background:var(--navy-2);}
+
+  .disclaimer{font-size:11.5px;color:var(--ink-soft);line-height:1.5;border-top:1px solid var(--rule);padding-top:12px;margin-top:6px;}
+
+  /* trace ledger */
+  .ledger{background:#fff;border:1px solid var(--rule);border-radius:3px;min-height:520px;padding:0;position:relative;overflow:hidden;}
+  .ledger-head{display:flex;justify-content:space-between;align-items:center;padding:16px 22px;border-bottom:1px solid var(--rule);background:var(--paper-deep);}
+  .ledger-head .title{font-family:var(--mono);font-size:11.5px;text-transform:uppercase;letter-spacing:0.1em;color:var(--ink-soft);}
+  .ledger-head .status{font-family:var(--mono);font-size:11px;padding:3px 9px;border-radius:20px;background:#fff;border:1px solid var(--rule);color:var(--ink-soft);}
+
+  .empty-state{display:flex;flex-direction:column;align-items:center;justify-content:center;height:480px;color:var(--ink-soft);text-align:center;padding:0 40px;}
+  .empty-state .icon{font-size:34px;margin-bottom:10px;opacity:.5;}
+  .empty-state p{font-size:13.5px;max-width:340px;line-height:1.5;}
+
+  .entries{padding:22px 26px 30px;}
+  .entry{border-left:2px solid var(--rule);padding-left:18px;margin-bottom:26px;position:relative;opacity:0;transform:translateY(6px);animation:rise .45s ease forwards;}
+  @keyframes rise{to{opacity:1;transform:translateY(0);}}
+  .entry::before{content:"";position:absolute;left:-5px;top:2px;width:8px;height:8px;border-radius:50%;background:var(--navy);}
+  .entry .step-tag{font-family:var(--mono);font-size:10.5px;text-transform:uppercase;letter-spacing:0.1em;color:var(--ink-soft);display:flex;gap:10px;align-items:baseline;}
+  .entry .step-tag .n{color:var(--navy);font-weight:600;}
+  .entry h3{font-family:var(--display);font-size:17.5px;font-weight:500;margin:4px 0 8px;}
+
+  .field-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px 18px;font-size:13px;margin-top:6px;}
+  .field-row{display:flex;justify-content:space-between;border-bottom:1px dotted var(--rule);padding:5px 0;}
+  .field-row .fname{color:var(--ink-soft);}
+  .field-row .fval{font-family:var(--mono);font-size:12.5px;text-align:right;}
+  .conf{font-size:10.5px;font-family:var(--mono);color:#7a8a80;margin-left:6px;}
+  .conf.low{color:var(--refer);}
+
+  .rule-box{background:var(--paper);border:1px solid var(--rule);border-radius:2px;padding:12px 14px;margin-top:8px;font-family:var(--mono);font-size:12.5px;line-height:1.55;}
+  .rule-box .rid{color:var(--navy);font-weight:600;}
+  .rule-fired{outline:2px solid var(--navy);outline-offset:2px;}
+
+  .stamp-wrap{display:flex;align-items:center;gap:20px;margin-top:6px;flex-wrap:wrap;}
+  .stamp{
+    font-family:var(--display);font-weight:600;font-size:20px;letter-spacing:0.03em;
+    border:3px solid; border-radius:6px; padding:10px 18px; display:inline-block;
+    transform:rotate(-3deg); position:relative; filter:url(#inkbleed);
+  }
+  .stamp.approve{color:var(--approve);border-color:var(--approve);background:var(--approve-bg);}
+  .stamp.refer{color:var(--refer);border-color:var(--refer);background:var(--refer-bg);}
+  .stamp.decline{color:var(--decline);border-color:var(--decline);background:var(--decline-bg);}
+  .reasoning{font-size:13.5px;line-height:1.55;max-width:480px;}
+
+  .audit-line{font-family:var(--mono);font-size:11.5px;color:var(--ink-soft);line-height:1.9;background:var(--paper);border:1px solid var(--rule);border-radius:2px;padding:12px 14px;margin-top:6px;}
+  .audit-line b{color:var(--ink);}
+
+  .json-block{background:var(--mono-bg);color:var(--mono-text);font-family:var(--mono);font-size:12px;line-height:1.6;padding:14px 16px;border-radius:3px;margin-top:8px;overflow-x:auto;white-space:pre;}
+  .json-key{color:#9ecbff;} .json-str{color:#c6e28f;} .json-num{color:#f2b479;}
+
+  .hidden{display:none !important;}
+  ::selection{background:var(--navy);color:var(--paper);}
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute">
+  <filter id="inkbleed">
+    <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" result="noise"/>
+    <feDisplacementMap in="SourceGraphic" in2="noise" scale="2.2"/>
+  </filter>
+</svg>
+
+<div class="wrap">
+  <div class="topbar">
+    <div class="brand">
+      <span class="mark">GroundSet</span>
+      <span class="sub">Decision Trace — Live</span>
+    </div>
+    <div class="caption">BPOptima · system of record for decisions<br>Rules, models &amp; data stay in your environment</div>
+  </div>
+
+  <h1>Watch a decision get made, not marketed.</h1>
+  <p class="lede">Pick a real case type. GroundSet reads the evidence, checks it against your own rule set — not ours — and writes the routing decision to an audit trail before you've finished reading it.</p>
+
+  <div class="viewtoggle" id="viewToggle">
+    <button class="active" data-view="officer">Risk Officer view</button>
+    <button data-view="engineer">Engineer view</button>
+  </div>
+
+  <div class="stage">
+    <div class="cases">
+      <div class="case-label">Select a case</div>
+
+      <div class="case-card" data-case="loan">
+        <div class="ctype">Commercial credit · renewal</div>
+        <div class="cname">Meridian Fabrication LLC</div>
+        <div class="cmeta">$2.4M revolving line · 3 evidence docs</div>
+      </div>
+
+      <div class="case-card" data-case="claim">
+        <div class="ctype">Auto insurance · collision claim</div>
+        <div class="cname">Policy POL-88213</div>
+        <div class="cmeta">$18,200 estimate · police report + photos</div>
+      </div>
+
+      <div class="case-card" data-case="kyc">
+        <div class="ctype">KYC refresh · corporate account</div>
+        <div class="cname">Solvora Trading Pte Ltd</div>
+        <div class="cmeta">Sanctions screening + UBO declaration</div>
+      </div>
+
+      <button class="run-btn" id="runBtn" disabled>Run decision</button>
+
+      <div class="disclaimer">This is a scripted illustration of GroundSet's trace — no live model call runs here. In a client deployment, every field, rule and hash below is generated from that client's own documents, rule set and models, hosted in their environment.</div>
+    </div>
+
+    <div class="ledger">
+      <div class="ledger-head">
+        <span class="title" id="ledgerTitle">Trace / idle</span>
+        <span class="status" id="ledgerStatus">Awaiting case</span>
+      </div>
+      <div class="empty-state" id="emptyState">
+        <div class="icon">◻</div>
+        <p>Select a case on the left, then run the decision. Each step below is exactly what lands in the audit trail — nothing is summarized after the fact.</p>
+      </div>
+      <div class="entries hidden" id="entries"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const CASES = {
+  loan: {
+    title: "Meridian Fabrication LLC — renewal",
+    docLabel: "Loan renewal file",
+    evidence: [
+      { label: "FY25 audited financial statements", pages: 14 },
+      { label: "Covenant compliance certificate", pages: 2 },
+      { label: "12-month bank statement summary", pages: 4 }
+    ],
+    fields: [
+      { name: "Debt service coverage ratio", value: "1.18x", conf: 96 },
+      { name: "Current ratio", value: "1.42x", conf: 94 },
+      { name: "Active covenant waiver on file", value: "No", conf: 99 },
+      { name: "Days past due (12mo)", value: "0", conf: 99 }
+    ],
+    ruleId: "RULE-CR-114",
+    ruleText: "IF renewal AND DSCR < 1.25 AND no active covenant waiver\n  THEN route to Senior Underwriter review",
+    outcome: "refer",
+    outcomeLabel: "REFERRED — SENIOR UNDERWRITER",
+    reasoning: "DSCR of 1.18x falls below the 1.25x renewal threshold in RULE-CR-114, and no covenant waiver is on file. The file routes to a named senior underwriter — GroundSet does not have authority to approve or decline here, only to route.",
+    engine: "acme-credit-llm-v4 (client-owned, fine-tuned, VPC-hosted)"
+  },
+  claim: {
+    title: "Policy POL-88213 — collision claim",
+    docLabel: "Claim file",
+    evidence: [
+      { label: "Police incident report", pages: 3 },
+      { label: "Damage photo set", pages: 6 },
+      { label: "Independent repair estimate", pages: 1 }
+    ],
+    fields: [
+      { name: "Liability determination", value: "Not at fault (§4)", conf: 91 },
+      { name: "Repair estimate", value: "$18,200", conf: 98 },
+      { name: "Policy payout limit", value: "$50,000", conf: 99 },
+      { name: "Prior claims (24mo)", value: "0", conf: 99 }
+    ],
+    ruleId: "RULE-CLM-27",
+    ruleText: "IF estimate < $25,000 AND not-at-fault AND 0 prior claims in 24mo\n  THEN auto-approve payout, no adjuster review",
+    outcome: "approve",
+    outcomeLabel: "APPROVED — AUTO-PAY AUTHORIZED",
+    reasoning: "The $18,200 estimate sits under the $25,000 auto-approval ceiling in RULE-CLM-27. Not-at-fault determination and a clean 24-month history clear the remaining conditions. Payout is authorized without adjuster review.",
+    engine: "acme-claims-llm-v2 (client-owned, fine-tuned, VPC-hosted)"
+  },
+  kyc: {
+    title: "Solvora Trading Pte Ltd — KYC refresh",
+    docLabel: "KYC refresh file",
+    evidence: [
+      { label: "UBO declaration", pages: 2 },
+      { label: "Certificate of incorporation", pages: 1 },
+      { label: "Sanctions screening result", pages: 1 }
+    ],
+    fields: [
+      { name: "Sanctions screening match", value: "68% confidence", conf: 68 },
+      { name: "Jurisdiction risk tier", value: "Tier 2", conf: 90 },
+      { name: "Auto-clear confidence threshold", value: "85%", conf: 100 }
+    ],
+    ruleId: "RULE-KYC-9",
+    ruleText: "IF sanctions match confidence < 85% auto-clear threshold\n  THEN hold for manual compliance review, regardless of tier",
+    outcome: "decline",
+    outcomeLabel: "HELD — MANUAL COMPLIANCE REVIEW",
+    reasoning: "A 68% match confidence sits below the 85% auto-clear threshold in RULE-KYC-9. Jurisdiction tier is irrelevant to this rule — the confidence gap alone is sufficient to hold the account for a named compliance reviewer.",
+    engine: "acme-kyc-llm-v3 (client-owned, fine-tuned, VPC-hosted)"
+  }
+};
+
+let selectedCase = null;
+let currentView = "officer";
+
+document.querySelectorAll(".case-card").forEach(card => {
+  card.addEventListener("click", () => {
+    document.querySelectorAll(".case-card").forEach(c => c.classList.remove("selected"));
+    card.classList.add("selected");
+    selectedCase = card.dataset.case;
+    document.getElementById("runBtn").disabled = false;
+    document.getElementById("ledgerStatus").textContent = "Ready to run";
+  });
+});
+
+document.getElementById("viewToggle").addEventListener("click", (e) => {
+  if (e.target.tagName !== "BUTTON") return;
+  document.querySelectorAll("#viewToggle button").forEach(b => b.classList.remove("active"));
+  e.target.classList.add("active");
+  currentView = e.target.dataset.view;
+  document.querySelectorAll(".officer-only").forEach(el => el.classList.toggle("hidden", currentView !== "officer"));
+  document.querySelectorAll(".engineer-only").forEach(el => el.classList.toggle("hidden", currentView !== "engineer"));
+});
+
+function confClass(c){ return c < 80 ? "conf low" : "conf"; }
+
+function outcomeClass(o){
+  return o === "approve" ? "approve" : o === "refer" ? "refer" : "decline";
+}
+
+function jsonPayload(c){
+  const fields = c.fields.map(f => `    "${f.name.replace(/ /g,'_').toLowerCase()}": { "value": "${f.value}", "confidence": ${f.conf} }`).join(",\n");
+  return `{
+  "case": "${c.title}",
+  "extracted_fields": {
+${fields}
+  },
+  "rule_evaluated": "${c.ruleId}",
+  "engine": "${c.engine}",
+  "decision": "${c.outcomeLabel}"
+}`;
+}
+
+async function runDecision(){
+  if (!selectedCase) return;
+  const c = CASES[selectedCase];
+  const entries = document.getElementById("entries");
+  const empty = document.getElementById("emptyState");
+  const runBtn = document.getElementById("runBtn");
+
+  runBtn.disabled = true;
+  empty.classList.add("hidden");
+  entries.classList.remove("hidden");
+  entries.innerHTML = "";
+  document.getElementById("ledgerTitle").textContent = "Trace / " + c.title;
+  document.getElementById("ledgerStatus").textContent = "Running…";
+
+  const wait = ms => new Promise(r => setTimeout(r, ms));
+
+  // Step 1: evidence
+  await wait(250);
+  const evidenceHtml = c.evidence.map(e => `<div class="field-row"><span class="fname">${e.label}</span><span class="fval">${e.pages}pp</span></div>`).join("");
+  const fieldsHtml = c.fields.map(f => `<div class="field-row"><span class="fname">${f.name}</span><span class="fval">${f.value}<span class="${confClass(f.conf)}">${f.conf}%</span></span></div>`).join("");
+  entries.insertAdjacentHTML("beforeend", `
+    <div class="entry">
+      <div class="step-tag"><span class="n">01</span> Evidence ingested</div>
+      <h3>${c.docLabel}</h3>
+      <div class="field-grid">${evidenceHtml}</div>
+      <div class="field-grid" style="margin-top:10px;">${fieldsHtml}</div>
+      <div class="json-block engineer-only ${currentView === 'engineer' ? '' : 'hidden'}">${jsonPayload(c).split("\n").slice(0,7).join("\n")}\n  ...</div>
+    </div>`);
+
+  await wait(900);
+  document.getElementById("ledgerStatus").textContent = "Checking rules…";
+  entries.insertAdjacentHTML("beforeend", `
+    <div class="entry">
+      <div class="step-tag"><span class="n">02</span> Client rule set applied</div>
+      <h3>${c.ruleId}</h3>
+      <div class="rule-box rule-fired"><span class="rid">${c.ruleId}</span><br>${c.ruleText.replace(/\n/g,"<br>")}</div>
+    </div>`);
+
+  await wait(900);
+  document.getElementById("ledgerStatus").textContent = "Routing…";
+  entries.insertAdjacentHTML("beforeend", `
+    <div class="entry">
+      <div class="step-tag"><span class="n">03</span> Decision routed</div>
+      <div class="stamp-wrap">
+        <div class="stamp ${outcomeClass(c.outcome)}">${c.outcomeLabel}</div>
+        <div class="reasoning">${c.reasoning}</div>
+      </div>
+    </div>`);
+
+  await wait(900);
+  const now = new Date().toISOString().replace("T"," ").slice(0,19) + " UTC";
+  const fakeHash = "0x" + Array.from({length:12},()=>Math.floor(Math.random()*16).toString(16)).join("");
+  document.getElementById("ledgerStatus").textContent = "Complete · written to audit trail";
+  entries.insertAdjacentHTML("beforeend", `
+    <div class="entry">
+      <div class="step-tag"><span class="n">04</span> Audit entry written</div>
+      <div class="audit-line">
+        <b>Timestamp</b> ${now}<br>
+        <b>Engine</b> ${c.engine}<br>
+        <b>Rule</b> ${c.ruleId} · <b>Field confidence range</b> ${Math.min(...c.fields.map(f=>f.conf))}–${Math.max(...c.fields.map(f=>f.conf))}%<br>
+        <b>Record hash</b> ${fakeHash} (immutable)
+      </div>
+      <div class="json-block engineer-only ${currentView === 'engineer' ? '' : 'hidden'}">${jsonPayload(c)}</div>
+    </div>`);
+
+  runBtn.disabled = false;
+  entries.scrollIntoView({behavior:"smooth", block:"nearest"});
+}
+
+document.getElementById("runBtn").addEventListener("click", runDecision);
+</script>
+</body>
+</html>
